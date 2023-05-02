@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 
 #Creating a namespace for our API
-ns2 = api.namespace('usecases', description='The usecases namespace provides endpoints for managing usecases, including creating, retrieving, updating, and deleting usecase information.')
+ns2 = api.namespace('usecases', description='The courses namespace provides endpoints for managing courses, including creating, retrieving, updating, and deleting course information.')
 
 # Define the expected payload using the 'fields' module
 usecase_model = ns2.model('UsecaseModel', {
@@ -22,12 +22,11 @@ usecase_model = ns2.model('UsecaseModel', {
     'label': fields.Nested(ns2.model('LabelModel', {
         'level1': fields.String(required=True, description='Level 1 label for the usecase'),
         'level2': fields.String(required=True, description='Level 2 label for the usecase')
-    }), required=True, description='Label object for the usecase'),
-    'ucid': fields.String(required=True, description='UCID for the usecase')
+    }), required=True, description='Label object for the usecase')
 })
 
 
-#Defining endpoints for getting and posting usecases
+#Defining endpoints for getting and posting courses
 @ns2.route('')
 class GetAndPost(Resource):
     def get(self):
@@ -36,6 +35,10 @@ class GetAndPost(Resource):
     @ns2.expect(usecase_model)  # Use the 'expect' decorator to specify the expected payload
     def post(self):
         data=api.payload
+        ucid_prefix = 'uc'
+        max_ucid = Usecase.objects.aggregate({"$group": {"_id": None, "max_ucid": {"$max": "$ucid"}}}).next().get("max_ucid")
+        ucid_suffix = str(int(max_ucid[2:]) + 1).zfill(3)
+        new_ucid = ucid_prefix + ucid_suffix
         usecase=Usecase(usecase_name=data['usecase_name'].upper(),
             heading=data['heading'],
             usecase_desc=data['usecase_desc'],
@@ -46,14 +49,13 @@ class GetAndPost(Resource):
             modify_id=data.get('modify_id', None),
             modify_dt=datetime.utcnow() if data.get('modify_id') else None,
             label=data['label'],
-            ucid=data['ucid'])
+            ucid=new_ucid)  # Use the next ucid value
         usecase.save()
-        return jsonify(Usecase.objects(ucid=data['ucid']))
+        return jsonify(Usecase.objects(ucid=new_ucid))
 
-#Defining endpoints for getting, updating and deleting usecases by ID
+#Defining endpoints for getting, updating and deleting courses by ID
 @ns2.route('/<idx>')
-class GetUpdateDelete(Resource):
-   
+class GetUpdateDelete(Resource): 
     def get(self,idx):
         return jsonify(Usecase.objects(ucid=idx))
     
