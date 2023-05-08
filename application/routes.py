@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from flask_jwt_extended import create_access_token,jwt_required,get_jwt_identity
+from mongoengine.errors import NotUniqueError
 
 #Creating a namespace for our API
 ns = api.namespace('users', description='The users namespace contains endpoints for managing user data. This includes creating, retrieving, updating, and deleting user accounts, as well as managing user authentication and authorization.')
@@ -265,6 +266,14 @@ class GetAndPost(Resource):
     @jwt_required() # add this if you're using JWT for authentication
     def post(self):
         data=api.payload
+        
+        # check if usecase name already exists
+        if Usecase.objects(usecase_name=data['usecase_name'].upper()):
+            return {'message': 'Usecase name already exists'}, 400
+        # check if nav_link already exists
+        if Usecase.objects(nav_link=data['nav_link']):
+            return {'message': 'Nav link already exists'}, 400
+        
         ucid_prefix = 'uc'
         max_ucid = Usecase.objects.aggregate({"$group": {"_id": None, "max_ucid": {"$max": "$ucid"}}}).next().get("max_ucid")
         ucid_suffix = str(int(max_ucid[2:]) + 1).zfill(3)
@@ -276,6 +285,7 @@ class GetAndPost(Resource):
             disp_order=data['disp_order'],
             nav_link=data['nav_link'],
             created_id=userid,
+            created_dt=datetime.utcnow(),
             status=data.get('status', True),
             modify_id=data.get('modify_id', None),
             modify_dt=datetime.utcnow() if data.get('modify_id') else None,
@@ -298,8 +308,18 @@ class GetUpdateDelete(Resource):
         userid=get_jwt_identity()
         data['modify_id'] = userid
         data['modify_dt'] = datetime.utcnow()  # Add modified date to payload
-        Usecase.objects(ucid=idx).update(**data)
-        return jsonify(Usecase.objects(ucid=idx))
+        uc_name=data.get('usecase_name', None)
+        navlink=data.get('nav_link', None)
+        neg_query = {"ucid": {"$ne": idx}}
+        try:
+            Usecase.objects(ucid=idx).update(**data)
+            return jsonify(Usecase.objects(ucid=idx))
+        except NotUniqueError:
+            # Ignore the current document being updated
+            if Usecase.objects(nav_link=navlink, **neg_query).first():
+                return {'message': f'Navigation Link - {navlink} already exists'}, 400
+            else:
+                return {'message': f'Ucecase name - {uc_name} already exists'}, 400
     
     @ns2.doc(security='Bearer Auth', parser=auth_header)
     @jwt_required() # add this if you're using JWT for authentication
