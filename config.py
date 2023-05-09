@@ -10,6 +10,9 @@ class Config(object):
     JWT_SECRET_KEY = secrets.token_urlsafe(32)
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=7)
 
+    basedir = os.path.abspath(os.path.dirname(__file__))
+    UPLOAD_FOLDER = os.path.join(basedir, 'application/static', 'uploads')
+
     # MongoDB settings are defined as a list of dictionaries, with each dictionary representing a MongoDB instance.
     # Here, a single MongoDB instance is defined with a database name 'UTA_Enrollment', host address '127.0.0.1',
     # port number '27017', and an alias 'default'.

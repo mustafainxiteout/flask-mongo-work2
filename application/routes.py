@@ -1,11 +1,11 @@
 #Importing necessary libraries
 from application import app,db,api,jwt,mail,serializer
-from flask import render_template, jsonify, json, request
+from flask import render_template, jsonify, json, request, url_for, send_from_directory
 from application.models import Usecase,users
 from flask_restx import Resource,fields
 from flask_mail import Mail, Message
-import tempfile
-import os
+from werkzeug.utils import secure_filename
+import os, re
 from datetime import datetime
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from flask_jwt_extended import create_access_token,jwt_required,get_jwt_identity
@@ -49,6 +49,10 @@ reverify_model = ns.model('Reverify', {
 auth_header = api.parser()
 auth_header.add_argument('Authorization', type=str, location='headers', required=True, help='Bearer Access Token')
 
+def is_valid_password(password):
+    # Minimum eight characters, at least one uppercase letter, one lowercase letter, one number and one special symbol
+    pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$'
+    return bool(re.match(pattern, password))
 
 @ns.route('')
 class GetAndPostUser(Resource):
@@ -65,7 +69,11 @@ class GetAndPostUser(Resource):
         #increment user_id+1 and generate it automatically
         max_user_id = users.objects.aggregate({"$group": {"_id": None, "max_user_id": {"$max": "$user_id"}}}).next().get("max_user_id")
         userid = max_user_id + 1
-        if not users.objects(email=data['email']).first():
+        # Validate the password
+        if not is_valid_password(data['password']):
+            # Return an error response if the password is invalid
+            return jsonify({'message': 'Invalid password.'}), 400
+        elif not users.objects(email=data['email']).first():
             # Create a new user and hash password and then send verification link to mail
             verified=False
             user=users(user_id=userid,name=data['name'],email=data['email'],verified=verified)
@@ -159,6 +167,11 @@ class UpdateUserpassword(Resource):
         if user.verified==False:
             return jsonify({"error": "Not verified, Cant Update!"})
         
+        # Validate the password
+        if not is_valid_password(data['new_password']):
+            return jsonify({'message': 'Invalid password.'}), 400
+            # Return an error response if the password is invalid
+        
         user.set_password(data['new_password'])
         user.save()
         
@@ -195,6 +208,10 @@ class ForgotPassword(Resource):
         user = users.objects(email=data['email']).first()
         if not user:
             return {'message': 'Invalid User'}, 401
+        # Validate the password
+        elif not is_valid_password(data['new_password']):
+            # Return an error response if the password is invalid
+            return jsonify({'message': 'Invalid password.'}), 400
         else:
             # Generate password reset token
             token = serializer.dumps(data, salt='password-reset')
@@ -326,7 +343,76 @@ class GetUpdateDelete(Resource):
     def delete(self,idx):
         Usecase.objects(ucid=idx).delete()
         return jsonify("Course is deleted!")
-    
+
+#Creating a namespace for our API
+ns3 = api.namespace('picture', description='The courses namespace provides endpoints for managing courses, including creating, retrieving, updating, and deleting course information.')
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+
+picture_model = ns3.model('Picture', {
+    'file': fields.Raw(required=True, description='Image file')
+})
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@ns3.route('/profile-picture')
+class ProfilePicture(Resource):
+    @ns3.expect(picture_model)  # Use the 'expect' decorator to specify the expected payload
+    @ns3.doc(security='Bearer Auth', parser=auth_header)
+    @jwt_required() # add this if you're using JWT for authentication
+    def get(self):
+        userid=get_jwt_identity()
+        filename = f"{userid}.jpg" # assuming file format is always jpg
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        if os.path.exists(filepath):
+            return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+        else:
+            return {'message': 'Profile picture not found.'}, 400
+
+    @ns3.expect(picture_model)  # Use the 'expect' decorator to specify the expected payload
+    @ns3.doc(security='Bearer Auth', parser=auth_header)
+    @jwt_required() # add this if you're using JWT for authentication
+    def post(self):
+        userid=get_jwt_identity()
+        if 'file' not in request.files:
+            return {'message': 'No file part in the request.'}, 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return {'message': 'No file selected for uploading.'}, 400
+
+        if file and allowed_file(file.filename):
+            filename = secure_filename(f"{userid}.jpg") # assuming file format is always jpg
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            return {'message': 'Profile picture uploaded successfully.'}, 201
+        else:
+            return {'message': 'Invalid file format. Only JPG, JPEG, PNG, and GIF formats are allowed.'}, 400
+
+    @ns3.expect(picture_model)  # Use the 'expect' decorator to specify the expected payload
+    @ns3.doc(security='Bearer Auth', parser=auth_header)
+    @jwt_required() # add this if you're using JWT for authentication
+    def put(self):
+        userid=get_jwt_identity()
+        if 'file' not in request.files:
+            return {'message': 'No file part in the request.'}, 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return {'message': 'No file selected for uploading.'}, 400
+
+        if file and allowed_file(file.filename):
+            filename = secure_filename(f"{userid}.jpg") # assuming file format is always jpg
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            file.save(filepath)
+            return {'message': 'Profile picture updated successfully.'}, 200
+        else:
+            return {'message': 'Invalid file format. Only JPG, JPEG, PNG, and GIF formats are allowed.'}, 400
+   
 
 #Defining the route for the index page
 @app.route("/")
