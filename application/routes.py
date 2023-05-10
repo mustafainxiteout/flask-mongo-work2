@@ -412,6 +412,41 @@ class ProfilePicture(Resource):
             return {'message': 'Profile picture updated successfully.'}, 200
         else:
             return {'message': 'Invalid file format. Only JPG, JPEG, PNG, and GIF formats are allowed.'}, 400
+        
+#Creating a namespace for our API
+ns4 = api.namespace('filesupload', description='The courses namespace provides endpoints for managing courses, including creating, retrieving, updating, and deleting course information.')
+
+ALLOWED_FILE_EXTENSIONS = {'csv', 'txt', 'xls','xlsv','wav','mp3'}
+
+filesupload = ns4.model('FilesUpload', {
+    'file': fields.Raw(required=True, description='Image file')
+})
+
+def allowed_file_extension(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_FILE_EXTENSIONS
+
+@ns4.route('')
+class UploadFiles(Resource):
+    def post(self):
+        if 'file' not in request.files:
+            return {'message': 'No file part in the request.'}, 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return {'message': 'No file selected for uploading.'}, 400
+        
+        group = request.form.get('group')  # Retrieve the group name from the request
+
+        if file and allowed_file_extension(file.filename):
+            group_directory = os.path.join(app.config['GROUP_FOLDER'], group)
+            os.makedirs(group_directory, exist_ok=True)  # Create the group directory if it doesn't exist
+
+            filepath = os.path.join(group_directory, file.filename)
+            file.save(filepath)
+            return {'message': 'File uploaded successfully.'}, 200
+        else:
+            return {'message': 'Invalid file format. Only CSV, XLS, XLSX, TXT, MP3, and WAV formats are allowed.'}, 400
    
 
 #Defining the route for the index page

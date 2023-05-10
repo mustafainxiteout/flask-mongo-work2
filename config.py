@@ -13,6 +13,8 @@ class Config(object):
     basedir = os.path.abspath(os.path.dirname(__file__))
     UPLOAD_FOLDER = os.path.join(basedir, 'application/static', 'uploads')
 
+    GROUP_FOLDER = os.path.join(basedir, 'application/static', 'groups')
+
     # MongoDB settings are defined as a list of dictionaries, with each dictionary representing a MongoDB instance.
     # Here, a single MongoDB instance is defined with a database name 'UTA_Enrollment', host address '127.0.0.1',
     # port number '27017', and an alias 'default'.
@@ -23,6 +25,6 @@ class Config(object):
     MAIL_PORT = 2525
     MAIL_USE_TLS = True
     MAIL_USE_SSL = False
-    MAIL_USERNAME = 'MAIL_USERNAME'
-    MAIL_PASSWORD = 'MAIL_PASSWORD'
+    MAIL_USERNAME = '788a6c95ec689c'
+    MAIL_PASSWORD = 'd2555919896f13'
     MAIL_DEFAULT_SENDER= 'from@example.com'
