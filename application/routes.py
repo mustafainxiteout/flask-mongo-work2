@@ -1,6 +1,6 @@
 #Importing necessary libraries
 from application import app,db,api,jwt,mail,serializer
-from flask import render_template, jsonify, json, request, url_for, send_from_directory
+from flask import render_template, jsonify, json, request, url_for, send_from_directory, send_file
 from application.models import Usecase,users
 from flask_restx import Resource,fields
 from flask_mail import Mail, Message
@@ -16,7 +16,9 @@ ns = api.namespace('users', description='The users namespace contains endpoints 
 
 # Define the expected payload using the 'fields' module
 user_model = ns.model('User', {
-    'name': fields.String(required=True, description='enter your name'),
+    'first_name': fields.String(required=True, description='enter your name'),
+    'last_name': fields.String(required=True, description='enter your name'),
+    'last_name': fields.String(required=True, description='enter your name'),
     'email': fields.String(required=True, description='enter your email id'),
     'password': fields.String(required=True, description='enter your password')
 })
@@ -271,7 +273,6 @@ usecase_model = ns2.model('UsecaseModel', {
     }), required=True, description='Label object for the usecase')
 })
 
-
 #Defining endpoints for getting and posting courses
 @ns2.route('')
 class GetAndPost(Resource):
@@ -343,6 +344,19 @@ class GetUpdateDelete(Resource):
     def delete(self,idx):
         Usecase.objects(ucid=idx).delete()
         return jsonify("Course is deleted!")
+    
+#Defining endpoints for getting and posting courses
+@ns2.route('/ucoptions')
+class GetUcids(Resource):
+    def get(self):
+        ucs=Usecase.objects.exclude('usecase_desc', 'disp_order', 'nav_link', 'created_id', 'created_dt', 'status', 'modify_id', 'modify_dt', 'label')
+        ucoptionstore = []
+        for uc in ucs:
+            ucoptionstore.append({
+                'ucid': uc.ucid,
+                'heading': uc.heading
+            })
+        return jsonify(ucoptionstore)
 
 #Creating a namespace for our API
 ns3 = api.namespace('picture', description='The courses namespace provides endpoints for managing courses, including creating, retrieving, updating, and deleting course information.')
@@ -418,7 +432,7 @@ ns4 = api.namespace('filesupload', description='The courses namespace provides e
 
 ALLOWED_FILE_EXTENSIONS = {'csv', 'txt', 'xls','xlsv','wav','mp3'}
 
-filesupload = ns4.model('FilesUpload', {
+filesuploadmodel = ns4.model('FilesUpload', {
     'file': fields.Raw(required=True, description='Image file')
 })
 
@@ -437,17 +451,63 @@ class UploadFiles(Resource):
             return {'message': 'No file selected for uploading.'}, 400
         
         group = request.form.get('group')  # Retrieve the group name from the request
+        ucid = request.form.get('ucid')  # Retrieve the ucid from the request
 
         if file and allowed_file_extension(file.filename):
             group_directory = os.path.join(app.config['GROUP_FOLDER'], group)
-            os.makedirs(group_directory, exist_ok=True)  # Create the group directory if it doesn't exist
+            ucid_directory = os.path.join(group_directory, ucid)
+            os.makedirs(ucid_directory, exist_ok=True)  # Create the group directory if it doesn't exist
 
-            filepath = os.path.join(group_directory, file.filename)
+            filepath = os.path.join(ucid_directory, file.filename)
             file.save(filepath)
             return {'message': 'File uploaded successfully.'}, 200
         else:
             return {'message': 'Invalid file format. Only CSV, XLS, XLSX, TXT, MP3, and WAV formats are allowed.'}, 400
-   
+        
+@ns4.route('/groups')
+class GetGroups(Resource):
+    def get(self):
+        group_data = []
+        group_folder = app.config['GROUP_FOLDER']
+
+        if os.path.isdir(group_folder):
+            group_names = os.listdir(group_folder)
+            for group_name in group_names:
+                group_data.append({'group': group_name})
+
+        return jsonify(group_data)
+
+
+@ns4.route('/<group>/<ucid>')
+class GetFiles(Resource):       
+    def get(self,group,ucid):
+        group_data = []
+        group_folder = app.config['GROUP_FOLDER']
+        group_path = os.path.join(group_folder, group, ucid)  # Update the path to include the ucid
+
+
+        if os.path.isdir(group_path):
+            files = []
+            file_names = os.listdir(group_path)
+            for file_name in file_names:
+                file_path = os.path.join(group_path, file_name)
+                if os.path.isfile(file_path):
+                    file_size = os.path.getsize(file_path)
+                    file_url = f"/download/{group}/{ucid}/{file_name}"
+                    files.append({
+                        'file_name': file_name,
+                        'file_size': round(file_size / (1024 * 1024), 2),
+                        'file_url': file_url
+                    })
+
+            if len(files) == 0:
+                return {'message': 'No files available.'}, 404
+
+            group_data.append({'files': files})
+        else:
+            return {'message': 'Group or UCID not found.'}, 404
+
+        return jsonify(group_data)
 
 #Defining the route for the index page
 @app.route("/")
@@ -484,3 +544,9 @@ def reset_password(token):
         return jsonify({'message': 'Verification link has expired.'}), 400
     except BadSignature:
         return jsonify({'message': 'Invalid verification link.'}), 400
+    
+@app.route("/download/<group>/<ucid>/<file_name>")
+def download_file(group, ucid, file_name):
+    group_directory = os.path.join(app.config['GROUP_FOLDER'], group, ucid)
+    file_path = os.path.join(group_directory, file_name)
+    return send_file(file_path, as_attachment=True)
