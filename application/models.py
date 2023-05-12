@@ -6,7 +6,9 @@ from bson.timestamp import Timestamp
 
 class users(db.Document):
     user_id=db.IntField(unique=True)
-    name=db.StringField(max_length=50)
+    first_name=db.StringField(max_length=50)
+    last_name=db.StringField(max_length=50)
+    gender=db.StringField(max_length=8)
     email=db.StringField(max_length=50,unique=True)
     password=db.StringField()
     verified=db.BooleanField(default=False)
@@ -25,7 +27,7 @@ class Usecase(db.Document):
     disp_order = db.IntField()
     nav_link = db.StringField(required=True, unique=True)
     created_id = db.StringField()
-    created_dt = db.DateTimeField(default=datetime.datetime.utcnow())
+    created_dt = db.DateTimeField()
     status = db.BooleanField(default=True)
     modify_id = db.StringField()
     modify_dt = db.DateTimeField()

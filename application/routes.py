@@ -18,7 +18,7 @@ ns = api.namespace('users', description='The users namespace contains endpoints 
 user_model = ns.model('User', {
     'first_name': fields.String(required=True, description='enter your name'),
     'last_name': fields.String(required=True, description='enter your name'),
-    'last_name': fields.String(required=True, description='enter your name'),
+    'gender': fields.String(required=True, description='enter your name'),
     'email': fields.String(required=True, description='enter your email id'),
     'password': fields.String(required=True, description='enter your password')
 })
@@ -61,8 +61,12 @@ class GetAndPostUser(Resource):
     @ns.doc(security='Bearer Auth', parser=auth_header)
     @jwt_required() # add this if you're using JWT for authentication
     def get(self):
-        # Get all users and exclude password field
-        return jsonify(users.objects.exclude('password','verified'))
+        idx=get_jwt_identity()
+        # Get user object by user_id and exclude password field
+        user = users.objects.exclude('password').get(user_id=idx)
+        # Serialize user object to JSON
+        user_json = json.loads(user.to_json())
+        return jsonify(user_json)
     
     @ns.expect(user_model)  # Use the 'expect' decorator to specify the expected payload
     def post(self):
@@ -78,7 +82,7 @@ class GetAndPostUser(Resource):
         elif not users.objects(email=data['email']).first():
             # Create a new user and hash password and then send verification link to mail
             verified=False
-            user=users(user_id=userid,name=data['name'],email=data['email'],verified=verified)
+            user=users(user_id=userid,first_name=data['first_name'],last_name=data['last_name'],gender=data['gender'],email=data['email'],verified=verified)
             user.set_password(data['password'])
             user.save()
             emailid=data['email']
@@ -93,52 +97,44 @@ class GetAndPostUser(Resource):
             mail.send(message)
             return {'message': 'Please click on the Verification Link Sent to mail'}, 200
         elif users.objects(email=data['email']).first():
-            return {'message': 'User Account already register'}, 401
+            return {'message': 'User Account is already registered'}, 401
         else:
             return {'message': 'Error occured'}, 401
-
-    
-@ns.route('/<idx>')
-class GetUpdateDeleteUser(Resource):
-    @ns.doc(security='Bearer Auth', parser=auth_header)
-    @jwt_required() # add this if you're using JWT for authentication
-    def get(self,idx):
-        # Get user object by user_id and exclude password field
-        user = users.objects.exclude('password').get(user_id=idx)
-        # Serialize user object to JSON
-        user_json = json.loads(user.to_json())
-        return jsonify(user_json)
-    
+        
     @ns.expect(user_model, auth_header) 
     @ns.doc(security='Bearer Auth', parser=auth_header)
     @jwt_required() # add this if you're using JWT for authentication
      # Use the 'expect' decorator to specify the expected payload
-    def put(self,idx):
+    def put(self):
         # Get request data from payload
         data = api.payload
+        idx=get_jwt_identity()
         user = users.objects(user_id=idx).first()
-        # Verify user with password and then update user details
-        if not user.get_password(data['password']):
-            return jsonify({"error": "Incorrect password, Cant Update!"})
-        elif user.verified==False:
+        unique_email=data.get('email', None)
+        if user.verified==False:
             return jsonify({"error": "Not verified, Cant Update!"})
         else:
-            # Exclude password field from update
-            data.pop('password', None)
-            # Update user object with new values
-            users.objects(user_id=idx).update(**data)
-            # Get updated user object and exclude password field
-            userwithoutpassword = users.objects.exclude('password','verified').get(user_id=idx)
-            # Serialize user object to JSON
-            user_json = json.loads(userwithoutpassword.to_json())
-            return jsonify(user_json)
-    
+            try:
+                # Exclude password field from update
+                data.pop('password', None)
+                if 'email' in data:
+                    data['verified']=False
+                users.objects(user_id=idx).update(**data)
+                # Get updated user object and exclude password field
+                userwithoutpassword = users.objects.exclude('password','verified').get(user_id=idx)
+                # Serialize user object to JSON
+                user_json = json.loads(userwithoutpassword.to_json())
+                return jsonify(user_json)
+            except NotUniqueError:
+                return {'message': f'Email id - {unique_email} already exists'}, 400
+        
     @ns.expect(password_model, auth_header)  # Use the 'expect' decorator to specify the expected payload
     @ns.doc(security='Bearer Auth', parser=auth_header)
     @jwt_required() # add this if you're using JWT for authentication
-    def delete(self, idx):
+    def delete(self):
         # Get request data from payload
         data = api.payload
+        idx=get_jwt_identity()
         user = users.objects(user_id=idx).first()
         # Verify user with password and then delete user account
         if not user.get_password(data['password']):
@@ -148,6 +144,16 @@ class GetUpdateDeleteUser(Resource):
         else:
             user.delete()
             return jsonify("User is deleted!")
+
+    
+@ns.route('/allusers')
+class GetUpdateDeleteUser(Resource):
+    @ns.doc(security='Bearer Auth', parser=auth_header)
+    @jwt_required() # add this if you're using JWT for authentication
+    def get(self):
+        # Get all users and exclude password field
+        return jsonify(users.objects.exclude('password','verified'))
+
     
 @ns.route('/updatepassword')
 class UpdateUserpassword(Resource):
