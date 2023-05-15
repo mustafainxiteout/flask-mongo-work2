@@ -1,7 +1,7 @@
 #Importing necessary libraries
 from application import app,db,api,jwt,mail,serializer
 from flask import render_template, jsonify, json, request, url_for, send_from_directory, send_file
-from application.models import Usecase,users
+from application.models import Usecase,users,NewTableModel
 from flask_restx import Resource,fields
 from flask_mail import Mail, Message
 from werkzeug.utils import secure_filename
@@ -514,6 +514,49 @@ class GetFiles(Resource):
             return {'message': 'Group or UCID not found.'}, 404
 
         return jsonify(group_data)
+    
+#Creating a namespace for our API
+ns5 = api.namespace('newtableapi', description='The courses namespace provides endpoints for managing courses, including creating, retrieving, updating, and deleting course information.')
+
+# Define the expected payload using the 'fields' module
+newtable_model = ns5.model('Newtable', {
+    'name': fields.String(required=True, description='Name of the newtable model'),
+    'age': fields.Integer(required=True, description='Age for the newtable model'),
+    'addresstype': fields.String(required=True, description='Address Type for the newtable model')
+})
+
+#Defining endpoints for getting and posting courses
+@ns5.route('')
+class GetAndPost(Resource):
+    def get(self):
+        return jsonify(NewTableModel.objects.all())
+    
+    @ns5.expect(newtable_model)  # Use the 'expect' decorator to specify the expected payload
+    def post(self):
+        # Get request data from payload
+        data=api.payload
+        #increment user_id+1 and generate it automatically
+        max_tabledata_id = NewTableModel.objects.aggregate({"$group": {"_id": None, "max_tabledata_id": {"$max": "$t_id"}}}).next().get("max_tabledata_id")
+        if max_tabledata_id is None:
+            max_tabledata_id=0
+        tid = max_tabledata_id + 1
+        NewTableModel_data=NewTableModel(name=data['name'],age=data['age'],addresstype=data['addresstype'],t_id=tid)
+        # Save the new course to the database
+        NewTableModel_data.save()
+        return {'message': 'Added NewTableModel Data'}, 200
+
+#Defining endpoints for getting and posting courses
+@ns5.route('/<idx>')
+class UpdatePost(Resource): 
+    @ns5.expect(newtable_model)  # Use the 'expect' decorator to specify the expected payload
+    def put(self,idx):
+        data=api.payload
+        # Remove the "_id" field from the update data
+        if '_id' in data:
+            data.pop('_id', None)# Exclude password field from update   
+        NewTableModel.objects(t_id=idx).update(**data)
+        return jsonify(NewTableModel.objects(t_id=idx))
+
 
 #Defining the route for the index page
 @app.route("/")

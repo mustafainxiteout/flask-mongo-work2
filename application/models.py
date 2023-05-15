@@ -33,3 +33,9 @@ class Usecase(db.Document):
     modify_dt = db.DateTimeField()
     label = db.DictField()
     ucid = db.StringField(required=True, unique=True)
+
+class NewTableModel(db.Document):
+    name = db.StringField(required=True)
+    age = db.IntField(required=True)
+    addresstype = db.StringField(required=True)
+    t_id=db.IntField(unique=True)
