@@ -516,7 +516,7 @@ class GetFiles(Resource):
         return jsonify(group_data)
     
 #Creating a namespace for our API
-ns5 = api.namespace('newtableapi', description='The courses namespace provides endpoints for managing courses, including creating, retrieving, updating, and deleting course information.')
+ns5 = api.namespace('newtableapi', description='The newtableapi namespace provides endpoints for managing newtable data, including creating, retrieving, updating, and deleting newtable data information.')
 
 # Define the expected payload using the 'fields' module
 newtable_model = ns5.model('Newtable', {
@@ -525,7 +525,7 @@ newtable_model = ns5.model('Newtable', {
     'addresstype': fields.String(required=True, description='Address Type for the newtable model')
 })
 
-#Defining endpoints for getting and posting courses
+#Defining endpoints for getting and posting newtable data
 @ns5.route('')
 class GetAndPost(Resource):
     def get(self):
@@ -535,7 +535,7 @@ class GetAndPost(Resource):
     def post(self):
         # Get request data from payload
         data=api.payload
-        #increment user_id+1 and generate it automatically
+        #increment t_id+1 and generate it automatically
         max_tabledata_id = NewTableModel.objects.aggregate({"$group": {"_id": None, "max_tabledata_id": {"$max": "$t_id"}}}).next().get("max_tabledata_id")
         if max_tabledata_id is None:
             max_tabledata_id=0
@@ -545,7 +545,7 @@ class GetAndPost(Resource):
         NewTableModel_data.save()
         return {'message': 'Added NewTableModel Data'}, 200
 
-#Defining endpoints for getting and posting courses
+#Defining endpoints for updating newtable data
 @ns5.route('/<idx>')
 class UpdatePost(Resource): 
     @ns5.expect(newtable_model)  # Use the 'expect' decorator to specify the expected payload
@@ -553,9 +553,13 @@ class UpdatePost(Resource):
         data=api.payload
         # Remove the "_id" field from the update data
         if '_id' in data:
-            data.pop('_id', None)# Exclude password field from update   
+            data.pop('_id', None)# Exclude _id field from update   
         NewTableModel.objects(t_id=idx).update(**data)
         return jsonify(NewTableModel.objects(t_id=idx))
+    
+    def delete(self,idx):
+        NewTableModel.objects(t_id=idx).delete()
+        return jsonify("NewTable Data is deleted!")
 
 
 #Defining the route for the index page
