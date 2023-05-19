@@ -529,7 +529,7 @@ newtable_model = ns5.model('Newtable', {
 @ns5.route('')
 class GetAndPost(Resource):
     def get(self):
-        return jsonify(NewTableModel.objects.all())
+        return jsonify(NewTableModel.objects.order_by('-t_id'))
     
     @ns5.expect(newtable_model)  # Use the 'expect' decorator to specify the expected payload
     def post(self):
