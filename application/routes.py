@@ -1,7 +1,7 @@
 #Importing necessary libraries
 from application import app,db,api,jwt,mail,serializer
 from flask import render_template, jsonify, json, request, url_for, send_from_directory, send_file
-from application.models import Usecase,users,NewTableModel
+from application.models import Usecase,users,NewTableModel,RemoteDocument
 from flask_restx import Resource,fields
 from flask_mail import Mail, Message
 from werkzeug.utils import secure_filename
@@ -560,6 +560,34 @@ class UpdatePost(Resource):
     def delete(self,idx):
         NewTableModel.objects(t_id=idx).delete()
         return jsonify("NewTable Data is deleted!")
+
+#Creating a namespace for our API
+ns6 = api.namespace('remotemode', description='The newtableapi namespace provides endpoints for managing newtable data, including creating, retrieving, updating, and deleting newtable data information.')
+
+# Define the data transfer object (DTO) for the PUT request
+remote_val_dto = ns6.model('RemoteValDTO', {
+    'remote_val': fields.Integer(required=True, description='Remote Value')
+})
+
+@ns6.route('/')
+class RemoteResource(Resource):
+    def get(self):
+        return jsonify(RemoteDocument.objects.all())
+    
+    @ns6.expect(remote_val_dto)
+    def put(self):
+        remoteval = api.payload.get('remote_val')
+        # Validate the remote_val value
+        if remoteval not in [1, 2, 3]:
+            return {'message': 'Invalid remote_val value'}, 400
+        # Wrap the remote_val in a dictionary
+        data={'remote_val':remoteval}
+        # Update the document using the `update` method
+        RemoteDocument.objects(keycode='REMOTE', pkey='REMOTE').update(**data)
+        # Retrieve the updated document
+        return jsonify(RemoteDocument.objects(keycode='REMOTE', pkey='REMOTE').first())
+
+        
 
 
 #Defining the route for the index page

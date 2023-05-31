@@ -39,3 +39,15 @@ class NewTableModel(db.Document):
     age = db.IntField(required=True)
     addresstype = db.StringField(required=True)
     t_id=db.IntField(unique=True)
+
+class RemoteDocument(db.Document):
+    user_grp = db.StringField(required=True)
+    keycode = db.StringField(required=True)
+    keydesc = db.StringField(required=True)
+    remote_val = db.IntField(required=True)
+    status = db.BooleanField(required=True)
+    pkey = db.StringField(required=True)
+    cdt = db.StringField()
+    cuser = db.StringField()
+    mdt = db.StringField()
+    muser = db.StringField()
